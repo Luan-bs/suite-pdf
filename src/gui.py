@@ -27,36 +27,36 @@ def obter_caminho_recurso(nome_relativo: str) -> Path:
     return Path(__file__).resolve().parent.parent / nome_relativo
 
 # ==============================================================================
-# DESIGN SYSTEM: Paleta Slate + Emerald (Inspirada em styles.css & main.css)
+# DESIGN SYSTEM: Paleta Slate + Emerald
 # Tuplas (Cor Modo Claro, Cor Modo Escuro) para adaptação automática
 # ==============================================================================
 THEME = {
-    # Superfícies principais
-    "app_bg": ("#f8fafc", "#0f172a"),          # Slate 50 / Slate 900
-    "card_bg": ("#ffffff", "#1e293b"),         # White / Slate 800
-    "card_border": ("#e2e8f0", "#334155"),     # Slate 200 / Slate 700
-    "subcard_bg": ("#f8fafc", "#0f172a"),      # Slate 50 / Slate 900
-    "header_table_bg": ("#f1f5f9", "#1e293b"), # Slate 100 / Slate 800
+    # Superfícies principais (Modo Claro "Off-White / Soft Slate" sem branco puro #ffffff)
+    "app_bg": ("#e2e8f0", "#0f172a"),          # Slate 200 / Slate 900
+    "card_bg": ("#f1f5f9", "#1e293b"),         # Slate 100 / Slate 800
+    "card_border": ("#cbd5e1", "#334155"),     # Slate 300 / Slate 700
+    "subcard_bg": ("#e8eef5", "#0f172a"),      # Soft Slate / Slate 900
+    "header_table_bg": ("#dde5ef", "#1e293b"), # Slate 200-150 / Slate 800
     # Linhas da lista (Estilo AG-Grid Alpine)
-    "row_bg": ("#ffffff", "#1e293b"),          # White / Slate 800
-    "row_border": ("#e2e8f0", "#334155"),      # Slate 200 / Slate 700
-    "row_sel_bg": ("#ecfdf5", "#064e3b"),      # Emerald 50 / Emerald 950
+    "row_bg": ("#f4f7fa", "#1e293b"),          # Off-White Suave / Slate 800
+    "row_border": ("#cbd5e1", "#334155"),      # Slate 300 / Slate 700
+    "row_sel_bg": ("#d1fae5", "#064e3b"),      # Emerald 100 / Emerald 950
     "row_sel_border": ("#10b981", "#10b981"),  # Emerald 500
-    "row_drop_bg": ("#d1fae5", "#065f46"),     # Emerald 100 / Emerald 800
+    "row_drop_bg": ("#a7f3d0", "#065f46"),     # Emerald 200 / Emerald 800
     "row_drop_border": ("#059669", "#34d399"), # Emerald 600 / Emerald 400
     # Tipografia
     "text_primary": ("#1e293b", "#f8fafc"),    # Slate 800 / Slate 50
     "text_secondary": ("#475569", "#cbd5e1"),  # Slate 600 / Slate 300
     "text_muted": ("#64748b", "#94a3b8"),      # Slate 500 / Slate 400
-    "text_emerald": ("#059669", "#34d399"),    # Emerald 600 / Emerald 400
+    "text_emerald": ("#047857", "#34d399"),    # Emerald 700 / Emerald 400
     # Acento Primário (Emerald)
     "primary": ("#10b981", "#10b981"),         # Emerald 500
     "primary_hover": ("#059669", "#059669"),   # Emerald 600
-    "primary_text": ("#ffffff", "#ffffff"),
+    "primary_text": ("#f8fafc", "#f8fafc"),    # Off-White (Slate 50)
     # Botões Secundários (Slate)
-    "secondary_bg": ("#f1f5f9", "#334155"),    # Slate 100 / Slate 700
-    "secondary_hover": ("#e2e8f0", "#475569"), # Slate 200 / Slate 600
-    "secondary_border": ("#cbd5e1", "#475569"),# Slate 300 / Slate 600
+    "secondary_bg": ("#dfe6ee", "#334155"),    # Soft Slate 200 / Slate 700
+    "secondary_hover": ("#cbd5e1", "#475569"), # Slate 300 / Slate 600
+    "secondary_border": ("#b8c4d4", "#475569"),# Slate 350 / Slate 600
     "secondary_text": ("#334155", "#f1f5f9"),  # Slate 700 / Slate 100
     # Botões de Remoção / Perigo (Red)
     "danger_bg": ("#fee2e2", "#451a1a"),       # Red 100 / Red 950
@@ -64,8 +64,8 @@ THEME = {
     "danger_border": ("#fca5a5", "#991b1b"),   # Red 300 / Red 800
     "danger_text": ("#dc2626", "#fca5a5"),     # Red 600 / Red 300
     # Inputs
-    "input_bg": ("#ffffff", "#0f172a"),
-    "input_border": ("#cbd5e1", "#475569"),
+    "input_bg": ("#f4f7fa", "#0f172a"),        # Off-White Suave / Slate 900
+    "input_border": ("#b8c4d4", "#475569"),    # Slate 350 / Slate 600
 }
 
 FONT_FAMILY = "Segoe UI"
@@ -201,7 +201,7 @@ class AppPDFMaster(ctk.CTk):
                     text="PDF",
                     font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
                     fg_color=THEME["primary"],
-                    text_color="#ffffff",
+                    text_color=THEME["primary_text"],
                     corner_radius=6,
                     width=42,
                     height=28,
@@ -213,7 +213,7 @@ class AppPDFMaster(ctk.CTk):
                 text="PDF",
                 font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
                 fg_color=THEME["primary"],
-                text_color="#ffffff",
+                text_color=THEME["primary_text"],
                 corner_radius=6,
                 width=42,
                 height=28,
@@ -280,8 +280,9 @@ class AppPDFMaster(ctk.CTk):
             segmented_button_selected_hover_color=THEME["primary_hover"],
             segmented_button_unselected_color=THEME["header_table_bg"],
             segmented_button_unselected_hover_color=THEME["secondary_hover"],
-            text_color="#ffffff",
+            text_color=THEME["primary_text"],
             corner_radius=10,
+            command=self._atualizar_cores_abas,
         )
         self.tabview.pack(fill="both", expand=True, padx=20, pady=(12, 18))
 
@@ -320,7 +321,7 @@ class AppPDFMaster(ctk.CTk):
             modo = ctk.get_appearance_mode()
             for valor, btn in self.tabview._segmented_button._buttons_dict.items():
                 if valor == self.tabview.get():
-                    btn.configure(text_color="#ffffff")
+                    btn.configure(text_color="#f8fafc")
                 else:
                     btn.configure(text_color="#334155" if modo == "Light" else "#cbd5e1")
         except Exception:
@@ -546,8 +547,8 @@ class AppPDFMaster(ctk.CTk):
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=THEME["text_primary"],
             progress_color=THEME["primary"],
-            button_color="#ffffff",
-            button_hover_color="#f1f5f9",
+            button_color=("#f8fafc", "#e2e8f0"),
+            button_hover_color=("#e2e8f0", "#cbd5e1"),
             command=self._ao_alternar_switch_compressao_unir,
         )
         self.chk_comprimir_unir.pack(anchor="w", padx=12, pady=(10, 6))
@@ -678,7 +679,7 @@ class AppPDFMaster(ctk.CTk):
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             fg_color=THEME["primary"],
             hover_color=THEME["primary_hover"],
-            text_color="#ffffff",
+            text_color=THEME["primary_text"],
             command=self._abrir_ultimo_arquivo_unir,
         )
         self.btn_abrir_pasta_unir = ctk.CTkButton(
@@ -1000,7 +1001,7 @@ class AppPDFMaster(ctk.CTk):
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             fg_color=THEME["primary"],
             hover_color=THEME["primary_hover"],
-            text_color="#ffffff",
+            text_color=THEME["primary_text"],
             command=self._abrir_ultimo_arquivo_comp,
         )
         self.btn_abrir_pasta_comp = ctk.CTkButton(
