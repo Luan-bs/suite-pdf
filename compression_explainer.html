@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Como o Suite PDF Comprime Arquivos</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    /* Transições suaves e scroll estilizado */
+    * { box-sizing: border-box; }
+    input[type=range] {
+      accent-color: var(--primary, #10b981);
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-4">
+  <div class="max-w-3xl mx-auto bg-[var(--card)] text-[var(--foreground)] border border-[var(--border)] rounded-2xl p-6 shadow-lg space-y-6">
+
+    <!-- Header -->
+    <div class="border-b border-[var(--border)] pb-4 flex items-start justify-between">
+      <div>
+        <div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 mb-2">
+          <span>⚡ Engenharia do Suite PDF</span>
+        </div>
+        <h2 class="text-xl font-bold tracking-tight text-[var(--foreground)]">Como Funciona a Compressão & O Mito dos 95%</h2>
+        <p class="text-[var(--muted-foreground)] text-xs mt-1">
+          A otimização <strong>NÃO é fixa</strong>. O percentual resulta de uma combinação matemática de downscaling e re-encoding.
+        </p>
+      </div>
+    </div>
+
+    <!-- Etapas do Pipeline -->
+    <div class="space-y-3">
+      <h3 class="text-sm font-semibold text-[var(--foreground)] uppercase tracking-wider flex items-center gap-2">
+        <span>🔄</span> Etapas do Pipeline (compressor.py)
+      </h3>
+      
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+        <!-- Card 1 -->
+        <div class="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)]/40 space-y-2">
+          <div class="font-semibold text-emerald-500 flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-emerald-500/20 inline-flex items-center justify-center text-[11px]">1</span>
+            SMask & Alpha Blending
+          </div>
+          <p class="text-[var(--muted-foreground)] leading-relaxed">
+            Localiza máscaras suaves (<code class="text-emerald-400">SMask</code>) e canais alfa. Fundo branco puro é aplicado, descartando o canal alfa pesado (4 canais $\to$ 3 canais RGB/L).
+          </p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)]/40 space-y-2">
+          <div class="font-semibold text-emerald-500 flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-emerald-500/20 inline-flex items-center justify-center text-[11px]">2</span>
+            Lanczos Downsampling
+          </div>
+          <p class="text-[var(--muted-foreground)] leading-relaxed">
+            Se a maior dimensão passar do limite (<code class="text-emerald-400">850px</code> padrão), a imagem é redimensionada via <strong>LANCZOS</strong> de alta fidelidade sem distorcer proporção.
+          </p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="p-3.5 rounded-xl border border-[var(--border)] bg-[var(--background)]/40 space-y-2">
+          <div class="font-semibold text-emerald-500 flex items-center gap-1.5">
+            <span class="w-5 h-5 rounded-full bg-emerald-500/20 inline-flex items-center justify-center text-[11px]">3</span>
+            Garbage 4 + Deflate
+          </div>
+          <p class="text-[var(--muted-foreground)] leading-relaxed">
+            Elimina objetos órfãos com <code class="text-emerald-400">garbage=4</code>, subordina fontes com <code class="text-emerald-400">subset_fonts()</code> e aplica zlib stream em todo o documento.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Simulador Interativo -->
+    <div class="p-4 rounded-xl border border-[var(--border)] bg-[var(--background)]/50 space-y-4">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-semibold text-[var(--foreground)]">
+          🧪 Simulador: Por que atinge ~95% em PDFs comuns?
+        </h4>
+        <span id="preset-badge" class="text-xs px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">Perfil Padrão (850px)</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+        <!-- Preset Selector -->
+        <div>
+          <label class="block font-medium text-[var(--foreground)] mb-1">Tipo de Imagem no PDF Original:</label>
+          <select id="preset-select" class="w-full bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-lg p-2 focus:ring-1 focus:ring-emerald-500 outline-none">
+            <option value="scanner">Digitalização / Scanner 300 DPI (3508 x 2480 - 8.7 MP)</option>
+            <option value="foto">Foto de Celular / Documento (4032 x 3024 - 12.2 MP)</option>
+            <option value="web">PDF já da Web / Imagens Médias (1280 x 720 - 0.9 MP)</option>
+            <option value="vetorial">PDF Quase Vetorial / Ícones (400 x 300 - 0.12 MP)</option>
+          </select>
+        </div>
+
+        <!-- Dimensão Máxima do Suite PDF -->
+        <div>
+          <label class="block font-medium text-[var(--foreground)] mb-1">Perfil de Compressão do Suite PDF:</label>
+          <select id="perfil-select" class="w-full bg-[var(--card)] border border-[var(--border)] text-[var(--foreground)] rounded-lg p-2 focus:ring-1 focus:ring-emerald-500 outline-none">
+            <option value="850">Padrão Equilibrado (Máx 850px, Q=68)</option>
+            <option value="720">Extremo (Máx 720px, Q=55)</option>
+            <option value="1200">Alta Fidelidade (Máx 1200px, Q=82)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Resumo Matemático -->
+      <div class="grid grid-cols-3 gap-3 pt-2 text-center">
+        <div class="p-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)]">
+          <div class="text-[11px] text-[var(--muted-foreground)]">Resolução Original</div>
+          <div id="res-orig" class="text-sm font-bold text-[var(--foreground)] mt-0.5">3508 × 2480</div>
+          <div id="mp-orig" class="text-[11px] text-[var(--muted-foreground)]">8.70 Megapixels</div>
+        </div>
+
+        <div class="p-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)]">
+          <div class="text-[11px] text-[var(--muted-foreground)]">Resolução Otimizada</div>
+          <div id="res-novo" class="text-sm font-bold text-emerald-500 mt-0.5">850 × 601</div>
+          <div id="mp-novo" class="text-[11px] text-emerald-400">0.51 Megapixels</div>
+        </div>
+
+        <div class="p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10">
+          <div class="text-[11px] text-emerald-400 font-semibold">Corte de Informação / Peso</div>
+          <div id="taxa-corte" class="text-lg font-black text-emerald-400 mt-0.5">94.1%</div>
+          <div id="status-corte" class="text-[11px] text-emerald-300 font-medium">Redução Massiva</div>
+        </div>
+      </div>
+
+      <!-- Nota de Segurança -->
+      <div class="text-[11px] text-[var(--muted-foreground)] flex items-start gap-2 bg-[var(--card)] p-3 rounded-lg border border-[var(--border)]">
+        <span class="text-amber-400 font-bold">ℹ️ Regra de Proteção:</span>
+        <span>
+          O código possui verificação dupla: <code>len(novos_bytes) &lt; len(stream_original)</code> e <code>tamanho_final &gt;= tamanho_original</code>. Se a imagem ou o arquivo final ficarem maiores, a alteração é sumariamente descartada!
+        </span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const presets = {
+      scanner: { w: 3508, h: 2480, name: "Scanner 300 DPI" },
+      foto: { w: 4032, h: 3024, name: "Foto Celular (12MP)" },
+      web: { w: 1280, h: 720, name: "Web / Médio" },
+      vetorial: { w: 400, h: 300, name: "Ícones / Baixa Resolução" }
+    };
+
+    const presetSelect = document.getElementById("preset-select");
+    const perfilSelect = document.getElementById("perfil-select");
+
+    function calcular() {
+      const orig = presets[presetSelect.value];
+      const maxDim = parseInt(perfilSelect.value, 10);
+
+      const maxOrig = Math.max(orig.w, orig.h);
+      let newW = orig.w;
+      let newH = orig.h;
+
+      if (maxOrig > maxDim) {
+        const escala = maxDim / maxOrig;
+        newW = Math.max(1, Math.round(orig.w * escala));
+        newH = Math.max(1, Math.round(orig.h * escala));
+      }
+
+      const mpOrigVal = (orig.w * orig.h) / 1000000;
+      const mpNewVal = (newW * newH) / 1000000;
+
+      // Redução de contagem de pixels
+      const reducaoPixels = ((1 - (newW * newH) / (orig.w * orig.h)) * 100);
+
+      document.getElementById("res-orig").textContent = `${orig.w} × ${orig.h}`;
+      document.getElementById("mp-orig").textContent = `${mpOrigVal.toFixed(2)} Megapixels`;
+
+      document.getElementById("res-novo").textContent = `${newW} × ${newH}`;
+      document.getElementById("mp-novo").textContent = `${mpNewVal.toFixed(2)} Megapixels`;
+
+      const taxaElem = document.getElementById("taxa-corte");
+      const statusElem = document.getElementById("status-corte");
+
+      if (reducaoPixels <= 0) {
+        taxaElem.textContent = "0.0%";
+        taxaElem.className = "text-lg font-black text-amber-400 mt-0.5";
+        statusElem.textContent = "Mantém original intacto";
+        statusElem.className = "text-[11px] text-amber-300 font-medium";
+      } else {
+        taxaElem.textContent = `${reducaoPixels.toFixed(1)}%`;
+        taxaElem.className = "text-lg font-black text-emerald-400 mt-0.5";
+        statusElem.textContent = reducaoPixels >= 85 ? "Redução Típica (~95%)" : "Redução Moderada";
+        statusElem.className = "text-[11px] text-emerald-300 font-medium";
+      }
+    }
+
+    presetSelect.addEventListener("change", calcular);
+    perfilSelect.addEventListener("change", calcular);
+    calcular();
+  </script>
+</body>
+</html>

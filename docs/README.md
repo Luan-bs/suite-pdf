@@ -1,40 +1,36 @@
-# Documentação Técnica — Arquitetura e Engenharia do File Compressor
+# Documentação Técnica — Arquitetura e Engenharia do Suite PDF
 
-Esta documentação detalha a engenharia interna do **File Compressor**, abordando os desafios inerentes à especificação **ISO 32000 (PDF)**, a manipulação de tabelas de referências cruzadas (`XREF`), o ciclo de vida dos fluxos binários (`streams`) e as estratégias de otimização aplicadas.
+Esta documentação detalha a engenharia interna do **Suite PDF**, abordando os desafios inerentes à especificação **ISO 32000 (PDF)**, a manipulação de tabelas de referências cruzadas (`XREF`), o ciclo de vida dos fluxos binários (`streams`), as estratégias de mesclagem/união de documentos e a arquitetura da interface desktop compilada para Windows.
 
 ---
 
 ## 1. Visão Geral da Arquitetura
 
-O processo de compressão de PDFs tradicionalmente falha ou gera arquivos maiores devido à natureza modular e baseada em grafos do formato PDF.
+O sistema é dividido em três camadas desacopladas: motor de compressão (`compressor.py`), motor de união (`merger.py`) e a interface gráfica reativa (`gui.py`).
 
 ```mermaid
 flowchart TD
-    A["PDF de Entrada"] --> B["fitz.open() & Autenticação de Criptografia"]
-    B --> C["Varredura do Grafo de Páginas"]
-    C --> D["Mapeamento de XObjects Únicos (XREFs de Imagem)"]
-    D --> E["Detecção e Vínculo de Máscaras (SMask)"]
-    
-    subgraph Otimizacao_Imagens ["Pipeline de Recompressão de Imagens"]
-        E --> F["Extração de Amostras de Pixels (Samples / Pixmap)"]
-        F --> G{"Possui SMask ou Alfa?"}
-        G -- Sim --> H["Composição sobre Fundo Branco (Alfa Blending)"]
-        G -- Não --> I["Conversão de Espaço de Cor (DeviceRGB / DeviceGray)"]
-        H --> J["Redimensionamento com Filtro Lanczos"]
-        I --> J
-        J --> K["Codificação DCTDecode (JPEG Otimizado)"]
+    subgraph UI ["Interface Gráfica (CustomTkinter)"]
+        UserAction["Ação do Usuário (Comprimir / Unir)"]
+        UserAction --> WorkerThread["Thread em Segundo Plano (daemon=True)"]
+        WorkerThread -.->|after 0 / safe callback| ProgressUI["Barra de Progresso & Status (Main Thread)"]
     end
-    
-    K --> L{"Novo Stream < Stream Original?"}
-    L -- Sim --> M["doc.update_object() + doc.update_stream(compress=False)"]
-    L -- Não --> N["Preserva Stream Original"]
-    
-    M --> O["doc.subset_fonts() (Eliminação de Glifos Órfãos)"]
-    N --> O
-    O --> P["doc.save(garbage=4, deflate=True)"]
-    P --> Q["Safety Check: Tamanho Final < Original?"]
-    Q -- Sim --> R["Gravação Atômica no Destino"]
-    Q -- Não --> S["Rollback Seguro (Preserva Original)"]
+
+    subgraph CoreEngine ["Motores de Processamento (PyMuPDF / Pillow)"]
+        WorkerThread --> Choice{"Ação Selecionada"}
+        Choice -- Comprimir --> CompEngine["src.compressor.comprimir_pdf()"]
+        Choice -- Unir --> MergeEngine["src.merger.unir_pdfs()"]
+        MergeEngine -.->|Se 'comprimir_apos_unir'| CompEngine
+    end
+
+    subgraph OptimPipeline ["Pipeline de Otimização em Baixo Nível"]
+        CompEngine --> A["Mapeamento de XObjects Únicos"]
+        A --> B["Reconstrução de Alfa (SMask + Fundo Branco)"]
+        B --> C["Redimensionamento com Filtro Lanczos"]
+        C --> D["Codificação DCT / JPEG com Árvore Huffman Personalizada"]
+        D --> E["Subsetting de Fontes TTF (Eliminação de Glifos Órfãos)"]
+        E --> F["Coleta de Lixo Estrutural (garbage=4) & Deflate"]
+    end
 ```
 
 ---
@@ -52,14 +48,14 @@ endstream
 - **XREF (Cross-Reference Table):** Tabela que mapeia ponteiros em bytes para cada objeto dentro do arquivo.
 - **XObjects:** Recursos compartilhados (como imagens e formulários) que podem ser instanciados dezenas de vezes em diferentes páginas sem duplicação de dados no arquivo físico.
 
-### 2.2. Por que o código inicial aumentou o arquivo de 1668 KB para 1774 KB?
-Quando se invoca métodos ingênuos como:
+### 2.2. Por que métodos ingênuos aumentam o tamanho do PDF?
+Quando se invoca métodos genéricos como:
 ```python
 doc.save("saida.pdf", garbage=4, deflate=True, clean=True)
 ```
 Três comportamentos indesejados ocorrem:
-1. **Nenhuma imagem é recompactada:** `deflate=True` aplica compressão zlib apenas em streams de conteúdo textual/vetorial. Imagens já compactadas (como JPEGs ou PNGs com Flate) permanecem com os mesmos bytes de pixel.
-2. **Descompactação estrutural por `clean=True`:** Esse parâmetro instrui o MuPDF a "sanitizar" o PDF, o que muitas vezes descompacta dicionários e tabelas XREF compactadas em PDFs modernos (PDF 1.5+ com *Object Streams*), gravando-os em formato texto expandido.
+1. **Nenhuma imagem é recompactada:** `deflate=True` aplica compressão zlib apenas em streams de conteúdo textual/vetorial. Imagens já compactadas (como JPEGs ou PNGs com Flate) permanecem intactas.
+2. **Descompactação estrutural por `clean=True`:** Esse parâmetro instrui o MuPDF a "sanitizar" o PDF, o que muitas vezes descompacta tabelas XREF compactadas em PDFs modernos (PDF 1.5+ com *Object Streams*), gravando-os em formato texto expandido.
 3. **Crescimento de metadados:** A reescrita dos índices sem redução nos maiores consumidores de espaço (as imagens) gera overhead líquido positivo.
 
 ---
@@ -112,32 +108,31 @@ doc.xref_set_key(xref, "Filter", "/DCTDecode")
 
 ---
 
-## 5. Otimização de Tipografia (Font Subsetting)
+## 5. O Mecanismo de União / Concatenação (`merger.py`)
 
-Documentos gerados por processadores de texto frequentemente embutem arquivos de fonte TrueType/OpenType inteiros (`/FontFile2`), contendo milhares de glifos para idiomas como grego, cirílico e kanji, mesmo que o documento utilize apenas o alfabeto latino básico.
-
-A chamada:
-```python
-doc.subset_fonts()
-```
-Analisa todos os operadores textuais (`Tj`, `TJ`, `'`) do documento, constrói a tabela exata de caracteres utilizados e descarta todos os glifos não referenciados da fonte embutida. Em documentos ricos em texto, isso economiza centenas de kilobytes por fonte.
+A mesclagem de arquivos PDF requer cuidados com tabelas XREF independentes para evitar colisões de identificadores de objetos (`obj-id`):
+1. **Instanciação Limpa:** Cria-se um documento destino vazio em memória (`fitz.open()`).
+2. **Iteração Sequencial:** Itera-se pela lista de arquivos na ordem explicitamente selecionada pelo usuário.
+3. **`insert_pdf()`:** A C-API do MuPDF recalcula todos os ponteiros de página, árvores de anotações e dicionários `/Resources`, mapeando recursivamente os novos índices sem duplicação de fontes compartilhadas.
+4. **Pós-Otimização Opcional:** O arquivo consolidado pode passar diretamente pelo pipeline do `comprimir_pdf()`, garantindo que documentos unidos (que costumam somar centenas de megabytes) tenham seu peso otimizado de imediato.
 
 ---
 
-## 6. Coleta de Lixo Estrutural (`Garbage Collection`)
+## 6. Arquitetura da Interface Gráfica e Multithreading (`gui.py`)
 
-O método `doc.save(..., garbage=4)` ativa o nível mais agressivo do *Garbage Collector* da biblioteca MuPDF:
-- **Nível 1:** Remove objetos não referenciados na tabela XREF.
-- **Nível 2:** Agrupa fluxos de páginas órfãos.
-- **Nível 3:** Compacta a tabela XREF eliminando buracos de objetos deletados.
-- **Nível 4:** Realiza desduplicação profunda de fluxos binários e remove anotações desvinculadas.
+Em aplicações desktop que manipulam arquivos pesados, operações síncronas bloqueiam o loop de eventos principal (`mainloop`), resultando no aviso de *"O aplicativo não está respondendo"*.
+
+Para contornar isso:
+1. **Threads de Trabalho (Worker Threads):** Todas as chamadas de compressão e união são executadas em instâncias de `threading.Thread(target=worker, daemon=True)`.
+2. **Despacho Seguro de Eventos (`self.after`):** Como componentes Tkinter não são thread-safe, a thread de trabalho nunca modifica widgets diretamente. Em vez disso, ela despacha lambdas para a fila de eventos principal através de `self.after(0, lambda: self._atualizar_ui(...))`.
+3. **Persistência de Preferências:** Um arquivo JSON leve armazenado no diretório do usuário (`~/.suitepdf_gui_config.json`) salva o tema visual (Dark/Light) e a preferência de pasta de destino fixa entre sessões.
 
 ---
 
-## 7. Mecanismos de Tolerância a Falhas e Segurança
+## 7. Engenharia de Empacotamento PyInstaller (`suitepdf.spec`)
 
-1. **Modo Assistido com Resolução Inteligente de Caminhos:** No modo interativo, o módulo de varredura `buscar_arquivos_pdf` inspeciona o grafo de diretórios filtrando ambientes virtuais (`.venv`, `.git`), calculando tamanho real de disco e exigindo confirmação explícita do usuário antes de iniciar qualquer leitura destrutiva ou transformação.
-2. **Criptografia e Proteção por Senha:** Se o documento exigir permissão de leitura, o sistema autentica via chave vazia (padrão em documentos com restrição de edição mas leitura livre) ou utiliza o argumento `--senha`.
-3. **Preservação Seletiva de Objetos:** Se uma imagem específica falhar durante a decodificação de cores, o erro é capturado e apenas aquele recurso é mantido em seu estado original, sem interromper o processamento das demais páginas.
-4. **Escrita Atômica e Rede de Segurança (Safety Check):** O arquivo é inicialmente salvo em um arquivo temporário `.tmp`. Se o resultado for maior ou igual ao arquivo de origem, a operação é abortada sem alterar o arquivo do usuário.
-
+A criação de um executável standalone sem console para Windows envolve:
+- **`console=False`:** Utiliza o bootloader `runw.exe` da Microsoft, que oculta a janela preta do prompt de comando.
+- **`collect_all('customtkinter')`:** O CustomTkinter carrega dinamicamente temas JSON (`blue.json`, etc.) e fontes `.otf` do diretório do pacote. A função `collect_all` assegura que todos os 54 arquivos de assets sejam incorporados ao executável.
+- **`collect_all('pymupdf')`:** Garante que todas as DLLs em C do motor MuPDF e extensões binárias estejam empacotadas no arquivo único (`--onefile`).
+- **Resolução em Runtime (`sys._MEIPASS`):** Ao iniciar, o executável descompacta as bibliotecas na pasta temporária do Windows e inicializa o runtime Python de forma transparente para o usuário.
