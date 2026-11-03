@@ -1,8 +1,20 @@
-# Suite PDF
+<p align="center">
+  <img src="assets/app_icon.png" alt="Logo Suite PDF" width="128" />
+</p>
 
-Um utilitário desktop completo, moderno e de alta performance desenvolvido em Python para **compressão universal** e **união/mesclagem** de arquivos PDF. 
+<h1 align="center">Suite PDF</h1>
 
-Acompanha **Interface Gráfica (GUI)** elegante com Dark Mode / Light Mode adaptativo e um executável standalone **`SuitePDF.exe`** pronto para uso no Windows (sem necessidade de instalar Python).
+<p align="center">
+  Um utilitário desktop completo, moderno e de alta performance desenvolvido em Python para <b>compressão universal</b> e <b>união/mesclagem</b> de arquivos PDF. 
+</p>
+
+<p align="center">
+  Acompanha <b>Interface Gráfica (GUI)</b> elegante com Dark Mode / Light Mode adaptativo e um executável standalone <b><code>SuitePDF.exe</code></b> pronto para uso no Windows (sem necessidade de instalar Python).
+</p>
+
+<p align="center">
+  <img src="docs/system_img.png" alt="Interface Gráfica do Suite PDF" width="850" />
+</p>
 
 ---
 
@@ -97,7 +109,8 @@ suite-pdf/
 │   ├── gui.py                    # Interface Gráfica moderna (CustomTkinter)
 │   └── main.py                   # Ponto de entrada (GUI padrão ou CLI com flags)
 ├── docs/
-│   └── README.md                 # Documentação técnica e engenharia em baixo nível
+│   ├── README.md                 # Documentação técnica e engenharia em baixo nível
+│   └── system_img.png            # Captura de tela da interface gráfica
 ├── suitepdf.spec                 # Especificação de empacotamento do PyInstaller
 └── pyproject.toml                # Metadados e dependências do projeto
 ```
