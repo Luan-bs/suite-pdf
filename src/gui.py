@@ -236,22 +236,38 @@ class AppPDFMaster(ctk.CTk):
         )
         lbl_sub.pack(side="left", padx=14)
 
-        # Seletor de Tema (Modo Claro / Escuro / Sistema)
-        box_tema = ctk.CTkFrame(header_inner, fg_color="transparent")
-        box_tema.pack(side="right")
+        # Controles da Direita: Suporte & Aparência
+        right_box = ctk.CTkFrame(header_inner, fg_color="transparent")
+        right_box.pack(side="right")
+
+        self.btn_suporte = ctk.CTkButton(
+            right_box,
+            text="ℹ️ Suporte",
+            width=92,
+            height=32,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color=THEME["secondary_bg"],
+            hover_color=THEME["secondary_hover"],
+            text_color=THEME["secondary_text"],
+            border_width=1,
+            border_color=THEME["secondary_border"],
+            corner_radius=6,
+            command=self._abrir_modal_suporte,
+        )
+        self.btn_suporte.pack(side="left", padx=(0, 14))
 
         lbl_tema = ctk.CTkLabel(
-            box_tema,
-            text=" Aparência:",
+            right_box,
+            text="Aparência:",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=THEME["text_secondary"],
         )
         lbl_tema.pack(side="left", padx=(0, 8))
 
         self.seletor_tema = ctk.CTkOptionMenu(
-            box_tema,
+            right_box,
             values=["Escuro", "Claro", "Sistema"],
-            width=110,
+            width=105,
             height=32,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             fg_color=THEME["secondary_bg"],
@@ -267,7 +283,7 @@ class AppPDFMaster(ctk.CTk):
             tema_inicial = "Escuro"
         self.seletor_tema.set(tema_inicial)
         self._aplicar_modo_aparencia(tema_inicial)
-        self.seletor_tema.pack(side="right")
+        self.seletor_tema.pack(side="left")
 
         # 2. Navegação de Abas (Segmented Button estilizado com Emerald)
         self.tabview = ctk.CTkTabview(
@@ -314,6 +330,142 @@ class AppPDFMaster(ctk.CTk):
         self._atualizar_cores_abas()
         self._atualizar_lista_unir_ui()
         self._atualizar_lista_comprimir_ui()
+
+    def _abrir_modal_suporte(self):
+        """Abre modal discreto de Sobre, Autoria e Suporte com contato do Setor de TI."""
+        janela = ctk.CTkToplevel(self)
+        janela.title("Sobre e Suporte — Suite PDF")
+        janela.geometry("460x390")
+        janela.resizable(False, False)
+        janela.configure(fg_color=THEME["app_bg"])
+
+        # Centraliza a janela sobre a aplicação principal
+        self.update_idletasks()
+        pos_x = max(0, self.winfo_x() + (self.winfo_width() // 2) - 230)
+        pos_y = max(0, self.winfo_y() + (self.winfo_height() // 2) - 195)
+        janela.geometry(f"+{pos_x}+{pos_y}")
+
+        caminho_ico = obter_caminho_recurso("assets/app_icon.ico")
+        if caminho_ico.exists():
+            try:
+                janela.iconbitmap(str(caminho_ico))
+            except Exception:
+                pass
+
+        janela.transient(self)
+        janela.grab_set()
+
+        card = ctk.CTkFrame(
+            janela,
+            fg_color=THEME["card_bg"],
+            border_width=1,
+            border_color=THEME["card_border"],
+            corner_radius=10,
+        )
+        card.pack(fill="both", expand=True, padx=16, pady=16)
+
+        # Cabeçalho com Logo e Nome do Sistema
+        top_box = ctk.CTkFrame(card, fg_color="transparent")
+        top_box.pack(fill="x", padx=16, pady=(16, 8))
+
+        caminho_logo = obter_caminho_recurso("assets/app_icon.png")
+        if caminho_logo.exists():
+            try:
+                pil_logo = Image.open(caminho_logo)
+                img_modal = ctk.CTkImage(light_image=pil_logo, dark_image=pil_logo, size=(46, 46))
+                lbl_logo = ctk.CTkLabel(top_box, image=img_modal, text="")
+                lbl_logo.image = img_modal
+                lbl_logo.pack(side="left", padx=(0, 12))
+            except Exception:
+                pass
+
+        info_box = ctk.CTkFrame(top_box, fg_color="transparent")
+        info_box.pack(side="left", fill="x", expand=True)
+
+        lbl_app = ctk.CTkLabel(
+            info_box,
+            text="Suite PDF",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"),
+            text_color=THEME["text_primary"],
+            anchor="w",
+        )
+        lbl_app.pack(anchor="w")
+
+        lbl_versao = ctk.CTkLabel(
+            info_box,
+            text="Versão 1.0 • Universal PDF Suite",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=THEME["text_muted"],
+            anchor="w",
+        )
+        lbl_versao.pack(anchor="w")
+
+        # Divisor sutil
+        divisor = ctk.CTkFrame(card, height=1, fg_color=THEME["card_border"])
+        divisor.pack(fill="x", padx=16, pady=8)
+
+        # Bloco de Autoria e Responsável
+        bloco_autor = ctk.CTkFrame(
+            card,
+            fg_color=THEME["subcard_bg"],
+            corner_radius=8,
+            border_width=1,
+            border_color=THEME["card_border"],
+        )
+        bloco_autor.pack(fill="x", padx=16, pady=6)
+
+        lbl_tit_autor = ctk.CTkLabel(
+            bloco_autor,
+            text="Desenvolvimento & Autoria",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=THEME["text_emerald"],
+        )
+        lbl_tit_autor.pack(anchor="w", padx=12, pady=(8, 2))
+
+        lbl_nome_autor = ctk.CTkLabel(
+            bloco_autor,
+            text="Luan Bitencourt Sarmento",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+            text_color=THEME["text_primary"],
+        )
+        lbl_nome_autor.pack(anchor="w", padx=12, pady=(0, 2))
+
+        lbl_setor = ctk.CTkLabel(
+            bloco_autor,
+            text="Setor de Tecnologia da Informação (TI)",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=THEME["text_secondary"],
+        )
+        lbl_setor.pack(anchor="w", padx=12, pady=(0, 8))
+
+        # Bloco de Suporte e Sugestões
+        bloco_suporte = ctk.CTkFrame(card, fg_color="transparent")
+        bloco_suporte.pack(fill="x", padx=16, pady=6)
+
+        lbl_sup_txt = ctk.CTkLabel(
+            bloco_suporte,
+            text="💡 Tem alguma dúvida, precisa de suporte ou tem sugestões de melhorias para o sistema? Entre em contato diretamente com o Setor de TI.",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=THEME["text_muted"],
+            justify="left",
+            wraplength=380,
+        )
+        lbl_sup_txt.pack(anchor="w", pady=4)
+
+        # Botão Fechar
+        btn_fechar = ctk.CTkButton(
+            card,
+            text="Fechar",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color=THEME["primary"],
+            hover_color=THEME["primary_hover"],
+            text_color=THEME["primary_text"],
+            height=32,
+            width=100,
+            corner_radius=6,
+            command=janela.destroy,
+        )
+        btn_fechar.pack(anchor="e", padx=16, pady=(10, 14))
 
     def _atualizar_cores_abas(self):
         """Garante contraste legível nos botões das abas tanto no modo Claro quanto no Escuro."""
