@@ -8,6 +8,10 @@ import argparse
 from pathlib import Path
 import sys
 
+# Evita carregamento automático de módulos pesados não utilizados (onnxruntime, numpy, pymupdf_layout)
+for _mod in ("pymupdf.layout", "pymupdf_layout", "pymupdf4llm"):
+    sys.modules.setdefault(_mod, None)  # type: ignore[arg-type]
+
 # Garante resolução de imports tanto no script quanto no executável PyInstaller
 BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR.parent) not in sys.path:

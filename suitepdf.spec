@@ -11,9 +11,12 @@ binaries += tmp_ctk[1]
 hiddenimports += tmp_ctk[2]
 
 tmp_pymupdf = collect_all('pymupdf')
-datas += tmp_pymupdf[0]
-binaries += tmp_pymupdf[1]
-hiddenimports += tmp_pymupdf[2]
+datas += [d for d in tmp_pymupdf[0] if not any(x in d[0].lower() for x in ('layout', 'onnx', '4llm'))]
+binaries += [b for b in tmp_pymupdf[1] if not any(x in b[0].lower() for x in ('layout', 'onnx', '4llm'))]
+hiddenimports += [
+    h for h in tmp_pymupdf[2]
+    if not any(x in h.lower() for x in ('layout', 'onnx', '4llm', 'numpy', 'scipy'))
+]
 
 # Inclui os ativos de imagem e ícone oficial
 datas += [('assets/app_icon.png', 'assets'), ('assets/app_icon.ico', 'assets')]
@@ -27,7 +30,20 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'onnxruntime',
+        'pymupdf_layout',
+        'pymupdf.layout',
+        'pymupdf4llm',
+        'numpy',
+        'scipy',
+        'tensorflow',
+        'torch',
+        'matplotlib',
+        'pandas',
+        'pypdf',
+        'pypdfium2',
+    ],
     noarchive=False,
     optimize=0,
 )

@@ -5,9 +5,15 @@ com suporte opcional a compressão pós-junção.
 """
 
 from collections.abc import Callable
+import gc
 import os
 from pathlib import Path
+import sys
 from typing import Any
+
+for _mod in ("pymupdf.layout", "pymupdf_layout", "pymupdf4llm"):
+    sys.modules.setdefault(_mod, None)  # type: ignore[arg-type]
+
 import pymupdf as fitz
 from src.compressor import comprimir_pdf
 
@@ -75,6 +81,7 @@ def unir_pdfs(
         total_paginas += len(doc_origem)
         doc_unificado.insert_pdf(doc_origem)
         doc_origem.close()
+        fitz.TOOLS.store_shrink(100)
 
     reportar(0.65, "Salvando PDF unificado temporário...")
     temp_unificado = caminho_out.with_suffix(".temp_merged.pdf")
@@ -84,6 +91,8 @@ def unir_pdfs(
         deflate=True,
     )
     doc_unificado.close()
+    fitz.TOOLS.store_shrink(100)
+    gc.collect()
 
     tamanho_unido = temp_unificado.stat().st_size / 1024
 
