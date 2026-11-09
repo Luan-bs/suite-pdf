@@ -18,7 +18,7 @@
 
 ---
 
-## 🎯 Objetivo do Projeto
+## Objetivo do Projeto
 
 Muitos PDFs corporativos, apostilas, apresentações e contratos escaneados chegam a pesar dezenas de megabytes devido a:
 - Capturas de tela e fotos salvas em resolução excessiva;
@@ -34,7 +34,7 @@ O **Suite PDF** resolve esses problemas com:
 
 ---
 
-## 🖥️ Como Usar o Executável (.exe)
+## Como Usar o Executável (.exe)
 
 O executável já compilado e pronto para distribuição encontra-se em:
 ```text
@@ -50,15 +50,31 @@ dist/SuitePDF.exe
 
 ---
 
-## 🚀 Execução em Ambiente de Desenvolvimento
+## Execução em Ambiente de Desenvolvimento
 
-### 1. Instalação com UV (ou Pip)
+### 1. Instalação do UV e Preparação do Ambiente
 
-O projeto é estruturado diretamente na pasta `src/`:
+O projeto utiliza o gerenciador **uv** para gerenciar dependências e o ambiente virtual com alta velocidade. Caso ainda não tenha o `uv` instalado em sua máquina, siga os passos abaixo:
+
+#### Passo A: Instalar o UV
+
+Se você já possui o Python e o `pip` instalados:
+```bash
+pip install uv
+```
+
+Alternativamente, via PowerShell (Windows):
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+#### Passo B: Sincronizar o Ambiente e Dependências
+
+Navegue até a pasta do projeto e execute a sincronização (o comando criará o ambiente virtual automaticamente e instalará todas as dependências):
 ```bash
 cd c:\vscode\suite-pdf
 
-# Sincroniza ambiente e dependências com uv
+# Sincroniza ambiente e dependências
 uv sync
 ```
 
@@ -117,7 +133,7 @@ suite-pdf/
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+## Tecnologias Utilizadas
 
 - **[CustomTkinter](https://customtkinter.tomschimansky.com/):** Interface gráfica moderna com suporte a temas Dark/Light e componentes fluidos.
 - **[PyMuPDF](https://pymupdf.readthedocs.io/):** Motor em C de alto desempenho para manipulação de XObjects, streams e páginas PDF.
