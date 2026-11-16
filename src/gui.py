@@ -10,7 +10,7 @@ from tkinter import filedialog, messagebox
 import customtkinter as ctk
 from PIL import Image
 
-from src.compressor import comprimir_pdf
+from src.compressor import EXTENSOES_IMAGEM, comprimir_arquivo, comprimir_pdf, eh_arquivo_imagem
 from src.merger import obter_qtd_paginas, unir_pdfs
 
 # Configuração global inicial do CustomTkinter
@@ -126,6 +126,8 @@ def extrair_parametros_perfil(perfil_texto: str) -> tuple[int, int]:
         return 55, 720
     if "Alta Fidelidade" in perfil_texto:
         return 82, 1200
+    if "Resolução Original" in perfil_texto:
+        return 75, 0
     return 68, 850
 
 
@@ -311,9 +313,9 @@ class AppPDFMaster(ctk.CTk):
         except Exception:
             pass
 
-        # Ordem de Seções: 1ª Unir/Comprimir PDF(s), 2ª Comprimir PDF(s)
+        # Ordem de Seções: 1ª Unir/Comprimir PDF(s), 2ª Comprimir PDF(s) e Imagens
         self.tab_unir = self.tabview.add("   🔗  Unir / Comprimir PDF(s)   ")
-        self.tab_comprimir = self.tabview.add("   ⚡  Comprimir PDF(s)   ")
+        self.tab_comprimir = self.tabview.add("   ⚡  Comprimir PDF / Imagens   ")
 
         self._construir_aba_unir()
         self._construir_aba_comprimir()
@@ -868,30 +870,46 @@ class AppPDFMaster(ctk.CTk):
             self.btn_executar_unir.configure(text="🔗 Unir PDF(s)")
 
     # ==========================================================================
-    # ABA 2: COMPRIMIR PDF(s)
+    # ABA 2: COMPRIMIR PDF(s) E IMAGENS
     # ==========================================================================
     def _construir_aba_comprimir(self):
         self.tab_comprimir.grid_columnconfigure(0, weight=3)
         self.tab_comprimir.grid_columnconfigure(1, weight=2)
         self.tab_comprimir.grid_rowconfigure(1, weight=1)
 
-        # --- BARRA DE FERRAMENTAS SUPERIOR (Idêntica à Aba 1 para consistência) ---
+        # --- BARRA DE FERRAMENTAS SUPERIOR ---
         top_bar = ctk.CTkFrame(self.tab_comprimir, fg_color="transparent")
         top_bar.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(8, 8))
 
         self.btn_add_comp = ctk.CTkButton(
             top_bar,
-            text="➕ Adicionar PDF(s)",
+            text="➕ Adicionar Arquivo(s)",
             font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
             fg_color=THEME["primary"],
             hover_color=THEME["primary_hover"],
             text_color=THEME["primary_text"],
             height=36,
-            width=165,
+            width=175,
             corner_radius=6,
             command=self._selecionar_arquivos_comprimir,
         )
-        self.btn_add_comp.pack(side="left", padx=(0, 8))
+        self.btn_add_comp.pack(side="left", padx=(0, 6))
+
+        self.btn_add_pasta_comp = ctk.CTkButton(
+            top_bar,
+            text="📂 Adicionar Pasta",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color=THEME["secondary_bg"],
+            hover_color=THEME["secondary_hover"],
+            text_color=THEME["secondary_text"],
+            border_width=1,
+            border_color=THEME["secondary_border"],
+            height=36,
+            width=148,
+            corner_radius=6,
+            command=self._selecionar_pasta_comprimir,
+        )
+        self.btn_add_pasta_comp.pack(side="left", padx=(0, 6))
 
         self.btn_acao_lista_comp = ctk.CTkButton(
             top_bar,
@@ -903,7 +921,7 @@ class AppPDFMaster(ctk.CTk):
             border_width=1,
             border_color=THEME["danger_border"],
             height=36,
-            width=160,
+            width=150,
             corner_radius=6,
             state="disabled",
             command=self._acao_contextual_remover_comp,
@@ -966,7 +984,7 @@ class AppPDFMaster(ctk.CTk):
 
         lbl_col_arq = ctk.CTkLabel(
             header_row,
-            text="ARQUIVO PDF",
+            text="ARQUIVO (PDF / IMAGEM)",
             font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
             text_color=THEME["text_secondary"],
             anchor="w",
@@ -1008,7 +1026,7 @@ class AppPDFMaster(ctk.CTk):
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             text_color=THEME["text_secondary"],
         )
-        lbl_cfg.pack(anchor="w", padx=16, pady=(14, 8))
+        lbl_cfg.pack(anchor="w", padx=16, pady=(12, 6))
 
         lbl_perfil = ctk.CTkLabel(
             right_panel,
@@ -1023,9 +1041,10 @@ class AppPDFMaster(ctk.CTk):
             values=[
                 "Equilibrado (Recomendado - ~850px / Q68)",
                 "Extremo (Menor Tamanho - ~720px / Q55)",
-                "Alta Fidelidade (Textos finos - ~1200px / Q82)",
+                "Alta Fidelidade (Fotos/Textos - ~1200px / Q82)",
+                "Resolução Original (Sem redimensionar / Q75)",
             ],
-            height=34,
+            height=32,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             fg_color=THEME["secondary_bg"],
             button_color=THEME["secondary_hover"],
@@ -1035,7 +1054,33 @@ class AppPDFMaster(ctk.CTk):
             dropdown_text_color=THEME["text_primary"],
             dropdown_hover_color=THEME["row_sel_bg"],
         )
-        self.combo_perfil.pack(fill="x", padx=16, pady=(0, 12))
+        self.combo_perfil.pack(fill="x", padx=16, pady=(0, 8))
+
+        lbl_fmt_img = ctk.CTkLabel(
+            right_panel,
+            text="Formato de saída (para Imagens):",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=THEME["text_primary"],
+        )
+        lbl_fmt_img.pack(anchor="w", padx=16, pady=(2, 2))
+
+        self.combo_formato_img = ctk.CTkOptionMenu(
+            right_panel,
+            values=[
+                "Manter formato original (.jpg / .png / .webp)",
+                "Converter todas para JPEG (.jpg - Menor peso)",
+            ],
+            height=32,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color=THEME["secondary_bg"],
+            button_color=THEME["secondary_hover"],
+            button_hover_color=THEME["primary"],
+            text_color=THEME["text_primary"],
+            dropdown_fg_color=THEME["card_bg"],
+            dropdown_text_color=THEME["text_primary"],
+            dropdown_hover_color=THEME["row_sel_bg"],
+        )
+        self.combo_formato_img.pack(fill="x", padx=16, pady=(0, 8))
 
         lbl_nome = ctk.CTkLabel(
             right_panel,
@@ -1047,14 +1092,28 @@ class AppPDFMaster(ctk.CTk):
 
         self.entry_nome_comp = ctk.CTkEntry(
             right_panel,
-            placeholder_text="Padrão: <nome_original>_otimizado.pdf",
-            height=34,
+            placeholder_text="Padrão: <nome_original>_otimizado",
+            height=32,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             fg_color=THEME["input_bg"],
             border_color=THEME["input_border"],
             text_color=THEME["text_primary"],
         )
-        self.entry_nome_comp.pack(fill="x", padx=16, pady=(0, 12))
+        self.entry_nome_comp.pack(fill="x", padx=16, pady=(0, 6))
+
+        self.var_manter_nome_orig = tk.BooleanVar(value=False)
+        chk_manter_nome = ctk.CTkCheckBox(
+            right_panel,
+            text="Manter nome original em lote (sem '_otimizado')",
+            variable=self.var_manter_nome_orig,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=THEME["text_secondary"],
+            checkbox_width=18,
+            checkbox_height=18,
+            fg_color=THEME["primary"],
+            hover_color=THEME["primary_hover"],
+        )
+        chk_manter_nome.pack(anchor="w", padx=16, pady=(0, 8))
 
         lbl_pasta = ctk.CTkLabel(
             right_panel,
@@ -1070,7 +1129,7 @@ class AppPDFMaster(ctk.CTk):
         self.entry_pasta_comp = ctk.CTkEntry(
             frame_pasta,
             placeholder_text="Mesma pasta do arquivo original",
-            height=34,
+            height=32,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             fg_color=THEME["input_bg"],
             border_color=THEME["input_border"],
@@ -1084,7 +1143,7 @@ class AppPDFMaster(ctk.CTk):
             frame_pasta,
             text="📁 Procurar",
             width=92,
-            height=34,
+            height=32,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             fg_color=THEME["secondary_bg"],
             hover_color=THEME["secondary_hover"],
@@ -1108,20 +1167,20 @@ class AppPDFMaster(ctk.CTk):
             hover_color=THEME["primary_hover"],
             command=lambda: self._salvar_preferencia_pasta(self.entry_pasta_comp.get(), self.var_fixar_pasta_comp.get()),
         )
-        chk_fixar_comp.pack(anchor="w", padx=16, pady=(4, 10))
+        chk_fixar_comp.pack(anchor="w", padx=16, pady=(4, 8))
 
         self.btn_executar_comp = ctk.CTkButton(
             right_panel,
-            text="⚡ Comprimir PDF(s)",
+            text="⚡ Comprimir Arquivo(s)",
             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
             fg_color=THEME["primary"],
             hover_color=THEME["primary_hover"],
             text_color=THEME["primary_text"],
-            height=44,
+            height=42,
             corner_radius=8,
             command=self._iniciar_compressao,
         )
-        self.btn_executar_comp.pack(fill="x", padx=16, pady=(6, 12), side="bottom")
+        self.btn_executar_comp.pack(fill="x", padx=16, pady=(4, 12), side="bottom")
 
         # --- RODAPÉ DE STATUS E AÇÕES PÓS-PROCESSAMENTO ---
         bottom_bar = ctk.CTkFrame(
@@ -1138,7 +1197,7 @@ class AppPDFMaster(ctk.CTk):
 
         self.lbl_status_comp = ctk.CTkLabel(
             status_row,
-            text="Pronto. Adicione um ou mais PDFs para comprimir.",
+            text="Pronto. Adicione PDFs ou imagens (ou uma pasta inteira) para comprimir.",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             text_color=THEME["text_secondary"],
         )
@@ -1147,8 +1206,8 @@ class AppPDFMaster(ctk.CTk):
         self.box_resultado_comp = ctk.CTkFrame(status_row, fg_color="transparent")
         self.btn_abrir_arquivo_comp = ctk.CTkButton(
             self.box_resultado_comp,
-            text="📄 Abrir PDF",
-            width=115,
+            text="📄 Abrir Arquivo",
+            width=122,
             height=30,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             fg_color=THEME["primary"],
@@ -1737,12 +1796,16 @@ class AppPDFMaster(ctk.CTk):
             abrir_no_explorer(self.ultimo_arquivo_gerado_unir)
 
     # ==========================================================================
-    # LÓGICA E EVENTOS DA ABA 2: COMPRIMIR PDF(s)
+    # LÓGICA E EVENTOS DA ABA 2: COMPRIMIR PDF(s) E IMAGENS
     # ==========================================================================
     def _selecionar_arquivos_comprimir(self):
         caminhos = filedialog.askopenfilenames(
-            title="Adicionar PDF(s) para Comprimir",
-            filetypes=[("Arquivos PDF", "*.pdf")],
+            title="Adicionar PDF(s) ou Imagens para Comprimir",
+            filetypes=[
+                ("PDFs e Imagens", "*.pdf *.jpg *.jpeg *.png *.webp *.bmp *.tif *.tiff"),
+                ("Apenas Imagens", "*.jpg *.jpeg *.png *.webp *.bmp *.tif *.tiff"),
+                ("Apenas PDF", "*.pdf"),
+            ],
         )
         if not caminhos:
             return
@@ -1753,6 +1816,40 @@ class AppPDFMaster(ctk.CTk):
                 self.arquivos_comprimir.append(n)
 
         self._atualizar_lista_comprimir_ui()
+
+    def _selecionar_pasta_comprimir(self):
+        pasta = filedialog.askdirectory(title="Selecione a Pasta com Imagens ou PDFs")
+        if not pasta:
+            return
+
+        pasta_path = Path(pasta)
+        extensoes_aceitas = EXTENSOES_IMAGEM | {".pdf"}
+        encontrados = sorted(
+            [
+                arq
+                for arq in pasta_path.iterdir()
+                if arq.is_file() and arq.suffix.lower() in extensoes_aceitas
+            ],
+            key=lambda p: p.name.lower(),
+        )
+
+        if not encontrados:
+            messagebox.showinfo(
+                "Nenhum arquivo encontrado",
+                "Não foram encontradas imagens (.jpg, .png, .webp, .bmp, .tif) nem arquivos .pdf na pasta selecionada.",
+            )
+            return
+
+        adicionados = 0
+        for arq in encontrados:
+            if arq not in self.arquivos_comprimir:
+                self.arquivos_comprimir.append(arq)
+                adicionados += 1
+
+        self._atualizar_lista_comprimir_ui()
+        self.lbl_status_comp.configure(
+            text=f"✔ {adicionados} arquivo(s) carregado(s) da pasta '{pasta_path.name}'."
+        )
 
     def _toggle_selecionar_todos_comp(self):
         if not self.arquivos_comprimir:
@@ -1811,7 +1908,7 @@ class AppPDFMaster(ctk.CTk):
 
             lbl_vazio = ctk.CTkLabel(
                 box_vazio,
-                text="Nenhum PDF na fila de compressão.\nClique em '➕ Adicionar PDF(s)' acima para selecionar.",
+                text="Nenhum arquivo na fila de compressão.\nClique em '➕ Adicionar Arquivo(s)' ou '📂 Adicionar Pasta' acima.",
                 font=ctk.CTkFont(family=FONT_FAMILY, size=13),
                 text_color=THEME["text_muted"],
                 justify="center",
@@ -1820,17 +1917,31 @@ class AppPDFMaster(ctk.CTk):
             return
 
         total_bytes = sum(p.stat().st_size for p in self.arquivos_comprimir if p.exists())
+        qtd_imgs = sum(1 for p in self.arquivos_comprimir if eh_arquivo_imagem(p))
+        qtd_pdfs = total - qtd_imgs
+
+        partes_tipo = []
+        if qtd_pdfs > 0:
+            partes_tipo.append(f"{qtd_pdfs} PDF(s)")
+        if qtd_imgs > 0:
+            partes_tipo.append(f"{qtd_imgs} Imagem(ns)")
+        resumo_tipo = " + ".join(partes_tipo) if partes_tipo else f"{total} arq(s)"
+
         sel_count = len(self.selecao_comprimir)
         sel_texto = f" • {sel_count} marcado(s)" if sel_count > 0 else ""
-        self.lbl_comp_qtd.configure(text=f"{total} PDF(s) • Total: {formatar_tamanho(total_bytes)}{sel_texto}")
+        self.lbl_comp_qtd.configure(text=f"{resumo_tipo} • Total: {formatar_tamanho(total_bytes)}{sel_texto}")
 
         if total == 1:
             primeiro = self.arquivos_comprimir[0]
             if not self.entry_nome_comp.get().strip():
                 self.entry_nome_comp.delete(0, tk.END)
-                self.entry_nome_comp.insert(0, f"{primeiro.stem}_otimizado.pdf")
+                self.entry_nome_comp.insert(0, f"{primeiro.stem}_otimizado{primeiro.suffix.lower()}")
 
-        for idx, item in enumerate(self.arquivos_comprimir):
+        # Para filas grandes (ex: 150+ imagens), renderiza até 200 linhas visíveis na tabela para manter fluidez instantânea da GUI
+        LIMITE_RENDER_UI = 200
+        itens_visiveis = self.arquivos_comprimir[:LIMITE_RENDER_UI]
+
+        for idx, item in enumerate(itens_visiveis):
             selecionado = idx in self.selecao_comprimir
             bg_color = THEME["row_sel_bg"] if selecionado else THEME["row_bg"]
             border_color = THEME["row_sel_border"] if selecionado else THEME["row_border"]
@@ -1867,15 +1978,16 @@ class AppPDFMaster(ctk.CTk):
                 text=f"#{idx + 1:02d}",
                 font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
                 text_color=THEME["text_emerald"] if selecionado else THEME["text_secondary"],
-                width=36,
+                width=42,
                 anchor="w",
             )
-            lbl_idx.pack(side="left", padx=(2, 6))
+            lbl_idx.pack(side="left", padx=(2, 4))
 
+            tipo_badge = "🖼️" if eh_arquivo_imagem(item) else "📄"
             tam_str = formatar_tamanho(item.stat().st_size) if item.exists() else "0 KB"
             lbl_info = ctk.CTkLabel(
                 row,
-                text=f"{item.name}   ({tam_str})",
+                text=f"{tipo_badge} {item.name}   ({tam_str})",
                 font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold" if selecionado else "normal"),
                 text_color=THEME["text_primary"],
                 anchor="w",
@@ -1896,6 +2008,16 @@ class AppPDFMaster(ctk.CTk):
             )
             btn_del.pack(side="right", padx=8)
 
+        if total > LIMITE_RENDER_UI:
+            restantes = total - LIMITE_RENDER_UI
+            lbl_mais = ctk.CTkLabel(
+                self.scroll_comp,
+                text=f"... e mais {restantes} arquivo(s) na fila prontos para compressão em lote.",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+                text_color=THEME["text_emerald"],
+            )
+            lbl_mais.pack(pady=8)
+
     def _toggle_item_selecao_comp(self, idx: int, marcado: bool):
         if marcado:
             self.selecao_comprimir.add(idx)
@@ -1911,15 +2033,18 @@ class AppPDFMaster(ctk.CTk):
 
     def _iniciar_compressao(self):
         if not self.arquivos_comprimir:
-            messagebox.showwarning("Aviso", "Adicione ao menos um arquivo PDF para comprimir.")
+            messagebox.showwarning("Aviso", "Adicione ao menos um arquivo (PDF ou Imagem) para comprimir.")
             return
 
         qualidade, max_dim = extrair_parametros_perfil(self.combo_perfil.get())
+        converter_para_jpg = "JPEG" in self.combo_formato_img.get()
+        manter_nome_orig = self.var_manter_nome_orig.get()
         pasta_destino = self.entry_pasta_comp.get().strip()
         nome_customizado = self.entry_nome_comp.get().strip()
 
         self.btn_executar_comp.configure(state="disabled")
         self.btn_add_comp.configure(state="disabled")
+        self.btn_add_pasta_comp.configure(state="disabled")
         self.btn_acao_lista_comp.configure(state="disabled")
         self.progresso_comp.set(0.0)
         self.box_resultado_comp.pack_forget()
@@ -1927,30 +2052,45 @@ class AppPDFMaster(ctk.CTk):
         def worker():
             total = len(self.arquivos_comprimir)
             resultados = []
+            erros = []
 
             for i, p_in in enumerate(self.arquivos_comprimir, start=1):
                 pct_base = (i - 1) / total
+                eh_img = eh_arquivo_imagem(p_in)
 
-                if pasta_destino and Path(pasta_destino).is_dir():
+                if eh_img:
+                    ext_saida = ".jpg" if converter_para_jpg else p_in.suffix.lower()
+                else:
+                    ext_saida = ".pdf"
+
+                if pasta_destino:
                     dest_dir = Path(pasta_destino)
+                    dest_dir.mkdir(parents=True, exist_ok=True)
+                elif manter_nome_orig:
+                    # Evita sobrescrever os originais caso o usuário marque manter nome original sem definir pasta externa
+                    dest_dir = p_in.parent / "otimizados"
+                    dest_dir.mkdir(parents=True, exist_ok=True)
                 else:
                     dest_dir = p_in.parent
 
-                if total == 1 and nome_customizado:
-                    nome_final = (
-                        nome_customizado if nome_customizado.lower().endswith(".pdf") else f"{nome_customizado}.pdf"
-                    )
+                if total == 1 and nome_customizado and not manter_nome_orig:
+                    stem_custom = Path(nome_customizado).stem if Path(nome_customizado).suffix else nome_customizado
+                    nome_final = f"{stem_custom}{ext_saida}"
+                elif manter_nome_orig:
+                    nome_final = f"{p_in.stem}{ext_saida}"
                 else:
-                    nome_final = f"{p_in.stem}_otimizado.pdf"
+                    nome_final = f"{p_in.stem}_otimizado{ext_saida}"
 
                 p_out = dest_dir / nome_final
 
                 def cb_prog(sub_pct: float, msg: str):
                     global_pct = pct_base + (sub_pct / total)
-                    self.after(0, lambda: self._atualizar_status_comp(global_pct, f"[{i}/{total}] {msg}"))
+                    # Em lotes grandes, atualiza a barra com fluidez
+                    if total <= 30 or sub_pct >= 1.0 or i % 2 == 0:
+                        self.after(0, lambda g=global_pct, m=msg, idx=i: self._atualizar_status_comp(g, f"[{idx}/{total}] {m}"))
 
                 try:
-                    res = comprimir_pdf(
+                    res = comprimir_arquivo(
                         caminho_entrada=p_in,
                         caminho_saida=p_out,
                         qualidade=qualidade,
@@ -1960,9 +2100,9 @@ class AppPDFMaster(ctk.CTk):
                     res["arquivo_entrada"] = p_in.name
                     resultados.append(res)
                 except Exception as e:
-                    self.after(0, lambda: messagebox.showerror("Erro", f"Erro ao comprimir {p_in.name}:\n{e}"))
+                    erros.append(f"{p_in.name}: {e}")
 
-            self.after(0, lambda: self._finalizar_compressao(resultados, total))
+            self.after(0, lambda: self._finalizar_compressao(resultados, total, erros))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -1970,9 +2110,10 @@ class AppPDFMaster(ctk.CTk):
         self.progresso_comp.set(pct)
         self.lbl_status_comp.configure(text=msg)
 
-    def _finalizar_compressao(self, resultados: list[dict], total: int):
+    def _finalizar_compressao(self, resultados: list[dict], total: int, erros: list[str] | None = None):
         self.btn_executar_comp.configure(state="normal")
         self.btn_add_comp.configure(state="normal")
+        self.btn_add_pasta_comp.configure(state="normal")
         self._atualizar_barra_contextual_comp()
         self.progresso_comp.set(1.0)
 
@@ -2004,18 +2145,21 @@ class AppPDFMaster(ctk.CTk):
                     f"Arquivo salvo em:\n{ultimo_saida}"
                 )
             else:
+                aviso_erros = f"\n• Falhas:               {len(erros)}" if erros else ""
                 msg_box = (
                     f"✔ Compressão em Lote Concluída!\n\n"
-                    f"• Total de arquivos:    {sucessos}/{total}\n"
-                    f"• Tamanho Total Antes:  {soma_orig:.1f} KB\n"
-                    f"• Tamanho Total Depois: {soma_final:.1f} KB\n"
+                    f"• Total de arquivos:    {sucessos}/{total}{aviso_erros}\n"
+                    f"• Tamanho Total Antes:  {soma_orig:.1f} KB ({soma_orig / 1024:.2f} MB)\n"
+                    f"• Tamanho Total Depois: {soma_final:.1f} KB ({soma_final / 1024:.2f} MB)\n"
                     f"• Redução Média:        {reducao_total:.1f}%\n\n"
                     f"Arquivos salvos em:\n{Path(ultimo_saida).parent}"
                 )
 
             messagebox.showinfo("Compressão Concluída", msg_box)
         else:
+            detalhe = "\n".join(erros[:5]) if erros else "Erro desconhecido."
             self.lbl_status_comp.configure(text=f"Processamento finalizado com falhas ({sucessos}/{total}).")
+            messagebox.showerror("Erro na Compressão", f"Não foi possível comprimir os arquivos:\n{detalhe}")
 
     def _abrir_ultimo_arquivo_comp(self):
         if self.ultimo_arquivo_gerado_comp:

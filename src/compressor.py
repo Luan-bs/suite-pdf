@@ -8,16 +8,24 @@ from collections.abc import Callable
 import gc
 import io
 from pathlib import Path
+import shutil
 import sys
 from typing import Any
 import zlib
-from PIL import Image
+from PIL import Image, ImageOps
 
 # Evita que o PyMuPDF carregue automaticamente pymupdf_layout, onnxruntime e numpy (~77 MB de RAM ociosa)
 for _mod in ("pymupdf.layout", "pymupdf_layout", "pymupdf4llm"):
     sys.modules.setdefault(_mod, None)  # type: ignore[arg-type]
 
 import pymupdf as fitz
+
+EXTENSOES_IMAGEM: set[str] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
+
+
+def eh_arquivo_imagem(caminho: str | Path) -> bool:
+    """Retorna True se o caminho possuir extensão de imagem suportada."""
+    return Path(caminho).suffix.lower() in EXTENSOES_IMAGEM
 
 
 def _mapear_imagens_e_smasks(
@@ -179,12 +187,12 @@ def _processar_imagem(
             modo_base = "L"
         else:
             modo_base = "RGB"
-        im_base = Image.frombytes(modo_base, (w0, h0), pix_base.samples)
+        im_base = Image.frombytes(modo_base, (w0, h0), pix_base.samples_mv)
         pix_base = None
 
         # 2. Calcula dimensão-alvo e redimensiona ANTES de alocar máscaras ou fundos RGB
         w, h = w0, h0
-        if max(w, h) > dimensao_maxima:
+        if dimensao_maxima > 0 and max(w, h) > dimensao_maxima:
             escala = dimensao_maxima / max(w, h)
             w, h = max(1, int(w * escala)), max(1, int(h * escala))
             im_resized = im_base.resize((w, h), Image.Resampling.LANCZOS)
@@ -197,7 +205,7 @@ def _processar_imagem(
         if smask_xref and smask_xref > 0:
             try:
                 mask_pix = fitz.Pixmap(doc, smask_xref)
-                im_mask = Image.frombytes("L", (mask_pix.width, mask_pix.height), mask_pix.samples)
+                im_mask = Image.frombytes("L", (mask_pix.width, mask_pix.height), mask_pix.samples_mv)
                 mask_pix = None
 
                 if im_mask.size != (w, h):
@@ -464,3 +472,198 @@ def comprimir_pdf(
         "total_imagens": total_imagens,
         "mensagem": f"Redução de {reducao_pct:.1f}% ({tamanho_original:.1f} KB -> {tamanho_final:.1f} KB).",
     }
+
+
+def comprimir_imagem(
+    caminho_entrada: str | Path,
+    caminho_saida: str | Path,
+    qualidade: int = 68,
+    dimensao_maxima: int = 850,
+    forcar_salvamento: bool = False,
+    callback_progresso: Callable[[float, str], None] | None = None,
+) -> dict[str, Any]:
+    """
+    Comprime um arquivo de imagem avulso (.jpg, .jpeg, .png, .webp, .bmp, .tiff)
+    preservando a orientação EXIF (fotos de retrato/celular), redimensionando via
+    Lanczos e aplicando codificação otimizada com baixo uso de memória.
+    """
+    caminho_in = Path(caminho_entrada).resolve()
+    caminho_out = Path(caminho_saida).resolve()
+
+    if not caminho_in.exists():
+        raise FileNotFoundError(f"Imagem de entrada não encontrada: {caminho_in}")
+
+    def reportar(pct: float, msg: str):
+        if callback_progresso:
+            callback_progresso(pct, msg)
+
+    reportar(0.10, f"Carregando imagem: {caminho_in.name}...")
+    tamanho_original = caminho_in.stat().st_size / 1024
+
+    im: Image.Image | None = None
+    im_out: Image.Image | None = None
+
+    try:
+        im = Image.open(caminho_in)
+        im.load()
+
+        # Corrige rotação EXIF de câmeras/celulares para fotos de pessoas não ficarem deitadas
+        try:
+            im_transposed = ImageOps.exif_transpose(im)
+            if im_transposed is not im:
+                im.close()
+                im = im_transposed
+        except Exception:
+            pass
+
+        w, h = im.size
+        if dimensao_maxima > 0 and max(w, h) > dimensao_maxima:
+            reportar(0.40, f"Redimensionando imagem ({w}x{h})...")
+            escala = dimensao_maxima / max(w, h)
+            novo_w, novo_h = max(1, int(w * escala)), max(1, int(h * escala))
+            im_resized = im.resize((novo_w, novo_h), Image.Resampling.LANCZOS)
+            im.close()
+            im = im_resized
+            w, h = novo_w, novo_h
+
+        ext_out = caminho_out.suffix.lower()
+        if ext_out not in EXTENSOES_IMAGEM:
+            ext_out = ".jpg"
+            caminho_out = caminho_out.with_suffix(".jpg")
+
+        reportar(0.75, f"Comprimindo e otimizando ({ext_out})...")
+        caminho_out.parent.mkdir(parents=True, exist_ok=True)
+        caminho_temp = caminho_out.with_name(f"{caminho_out.name}.tmp")
+
+        if ext_out in (".jpg", ".jpeg", ".bmp", ".tif", ".tiff"):
+            # Se a imagem possuir transparência, compõe sobre fundo branco antes de gerar JPEG
+            if im.mode in ("RGBA", "LA") or (im.mode == "P" and "transparency" in im.info):
+                im_rgba = im.convert("RGBA")
+                bg = Image.new("RGB", (w, h), (255, 255, 255))
+                alpha = im_rgba.getchannel("A")
+                try:
+                    bg.paste(im_rgba.convert("RGB"), (0, 0), mask=alpha)
+                finally:
+                    alpha.close()
+                    im_rgba.close()
+                im_out = bg
+            elif im.mode not in ("RGB", "L"):
+                im_out = im.convert("RGB")
+            else:
+                im_out = im
+
+            if ext_out in (".tif", ".tiff"):
+                im_out.save(caminho_temp, format="TIFF", compression="tiff_adobe_deflate")
+            else:
+                im_out.save(
+                    caminho_temp,
+                    format="JPEG",
+                    quality=qualidade,
+                    optimize=True,
+                    progressive=True,
+                )
+        elif ext_out == ".png":
+            # Otimização PNG: testa quantização adaptativa de 256 cores vs PNG deflate nível 9
+            buf_lossless = io.BytesIO()
+            im.save(buf_lossless, format="PNG", optimize=True, compress_level=9)
+            cand_bytes = buf_lossless.getvalue()
+
+            try:
+                metodo_q = (
+                    Image.Quantize.FASTOCTREE
+                    if im.mode in ("RGBA", "LA")
+                    else Image.Quantize.MEDIANCUT
+                )
+                im_quant = im.quantize(colors=256, method=metodo_q)
+                try:
+                    buf_quant = io.BytesIO()
+                    im_quant.save(buf_quant, format="PNG", optimize=True, compress_level=9)
+                    q_bytes = buf_quant.getvalue()
+                    if len(q_bytes) < len(cand_bytes):
+                        cand_bytes = q_bytes
+                finally:
+                    im_quant.close()
+            except Exception:
+                pass
+
+            caminho_temp.write_bytes(cand_bytes)
+        elif ext_out == ".webp":
+            im.save(caminho_temp, format="WEBP", quality=qualidade, method=6)
+    finally:
+        if im_out is not None and im_out is not im:
+            im_out.close()
+        if im is not None:
+            im.close()
+
+    tamanho_final = caminho_temp.stat().st_size / 1024
+
+    if tamanho_final >= tamanho_original and not forcar_salvamento:
+        if caminho_temp.exists():
+            caminho_temp.unlink()
+        # Se o destino for outra pasta/arquivo, copia o original para não faltar na pasta de saída
+        if caminho_out != caminho_in:
+            shutil.copy2(caminho_in, caminho_out)
+        reportar(1.0, "A imagem já se encontra com tamanho otimizado.")
+        return {
+            "sucesso": True,
+            "ja_otimizado": True,
+            "tamanho_original": tamanho_original,
+            "tamanho_final": tamanho_original,
+            "reducao_pct": 0.0,
+            "caminho_saida": str(caminho_out),
+            "imagens_otimizadas": 0,
+            "total_imagens": 1,
+            "mensagem": "A imagem já estava otimizada (mantido tamanho original).",
+        }
+
+    if caminho_out.exists():
+        caminho_out.unlink()
+    caminho_temp.rename(caminho_out)
+
+    reducao_pct = (1.0 - (tamanho_final / tamanho_original)) * 100.0 if tamanho_original > 0 else 0.0
+    reportar(1.0, f"Imagem otimizada! Redução de {reducao_pct:.1f}%.")
+
+    return {
+        "sucesso": True,
+        "ja_otimizado": False,
+        "tamanho_original": tamanho_original,
+        "tamanho_final": tamanho_final,
+        "reducao_pct": reducao_pct,
+        "caminho_saida": str(caminho_out),
+        "imagens_otimizadas": 1,
+        "total_imagens": 1,
+        "mensagem": f"Redução de {reducao_pct:.1f}% ({tamanho_original:.1f} KB -> {tamanho_final:.1f} KB).",
+    }
+
+
+def comprimir_arquivo(
+    caminho_entrada: str | Path,
+    caminho_saida: str | Path,
+    qualidade: int = 68,
+    dimensao_maxima: int = 850,
+    senha: str | None = None,
+    forcar_salvamento: bool = False,
+    callback_progresso: Callable[[float, str], None] | None = None,
+) -> dict[str, Any]:
+    """
+    Despachante universal: detecta se o arquivo de entrada é uma imagem ou um PDF
+    e encaminha para o motor correspondente.
+    """
+    if eh_arquivo_imagem(caminho_entrada):
+        return comprimir_imagem(
+            caminho_entrada=caminho_entrada,
+            caminho_saida=caminho_saida,
+            qualidade=qualidade,
+            dimensao_maxima=dimensao_maxima,
+            forcar_salvamento=forcar_salvamento,
+            callback_progresso=callback_progresso,
+        )
+    return comprimir_pdf(
+        caminho_entrada=caminho_entrada,
+        caminho_saida=caminho_saida,
+        qualidade=qualidade,
+        dimensao_maxima=dimensao_maxima,
+        senha=senha,
+        forcar_salvamento=forcar_salvamento,
+        callback_progresso=callback_progresso,
+    )

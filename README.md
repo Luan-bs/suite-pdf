@@ -5,7 +5,7 @@
 <h1 align="center">Suite PDF</h1>
 
 <p align="center">
-  Um utilitário desktop completo, moderno e de alta performance desenvolvido em Python para <b>compressão universal</b> e <b>união/mesclagem</b> de arquivos PDF. 
+  Um utilitário desktop completo, moderno e de alta performance desenvolvido em Python para <b>compressão universal de PDFs e imagens</b> e <b>união/mesclagem</b> de documentos PDF. 
 </p>
 
 <p align="center">
@@ -26,11 +26,12 @@ Muitos PDFs corporativos, apostilas, apresentações e contratos escaneados cheg
 - Falta de ferramentas simples e seguras para juntar vários documentos em um arquivo leve e organizado.
 
 O **Suite PDF** resolve esses problemas com:
-1. **Compressão Real:** Redução de **40% a 85%** no peso em KB/MB, preservando a legibilidade de textos, vetores e tabelas.
-2. **União / Mesclagem de PDFs:** Concatenação de múltiplos documentos na ordem exata escolhida (com reordenação via drag-and-drop), com opção de comprimir o PDF unificado.
-3. **Renomeação e Destino Flexíveis:** Edição do nome final, escolha de pasta de destino ou opção de **fixar pasta padrão**.
-4. **Sem Artefatos Visuais:** Composição de transparência sobre fundo branco, eliminando o erro comum de retângulos pretos em fluxogramas e logos.
-5. **Executável Windows Standalone:** Arquivo `.exe` único sem telas pretas de terminal.
+1. **Compressão Real de PDFs e Imagens:** Redução de **40% a 85%** no peso em KB/MB de PDFs e imagens avulsas (`.jpg`, `.jpeg`, `.png`, `.webp`, `.bmp`, `.tif`, `.tiff`), preservando legibilidade, nitidez e orientação EXIF de fotos.
+2. **Compressão em Lote por Pasta:** Carregamento direto de pastas inteiras com dezenas ou centenas de imagens/PDFs, com opção de manter os nomes originais ou converter imagens para `.jpg`.
+3. **União / Mesclagem de PDFs:** Concatenação de múltiplos documentos na ordem exata escolhida (com reordenação via drag-and-drop), com opção de comprimir o PDF unificado.
+4. **Renomeação e Destino Flexíveis:** Edição do nome final, escolha de pasta de destino ou opção de **fixar pasta padrão**.
+5. **Sem Artefatos Visuais:** Detecção adaptativa de transparência (`SMask` Modo A/B), evitando tanto retângulos pretos em documentos brancos quanto caixas brancas em slides escuros.
+6. **Executável Windows Standalone:** Arquivo `.exe` único sem telas pretas de terminal.
 
 ---
 
@@ -45,8 +46,8 @@ dist/SuitePDF.exe
 2. A interface gráfica abrirá instantaneamente em modo janela nativa.
 3. Escolha a seção desejada:
    - **Aba "Unir / Comprimir PDF(s)":** Adicione os PDFs que deseja juntar, arraste os itens para reordenar ou use as setas, marque opcionalmente *"Comprimir e otimizar após unir"* e clique em **Unir e Comprimir PDF(s)**.
-   - **Aba "Comprimir PDF(s)":** Adicione um ou mais PDFs, escolha o perfil de qualidade, edite o nome do arquivo se desejar e clique em **Comprimir PDF(s)**.
-4. Ao concluir, use os botões **📄 Abrir PDF** ou **📂 Abrir Pasta** para visualizar o resultado no Windows Explorer.
+   - **Aba "Comprimir PDF / Imagens":** Adicione arquivos individuais (`➕ Adicionar Arquivo(s)`) ou uma pasta inteira (`📂 Adicionar Pasta`) contendo PDFs e/ou imagens (`.jpg`, `.png`, `.webp`, `.bmp`, `.tiff`). Escolha o nível de compressão (incluindo *Resolução Original*), o formato de saída para imagens (manter original ou converter para JPEG), defina se deseja manter os nomes originais em lote e clique em **Comprimir Arquivo(s)**.
+4. Ao concluir, use os botões **📄 Abrir Arquivo** ou **📂 Abrir Pasta** para visualizar o resultado no Windows Explorer.
 
 ---
 
@@ -90,8 +91,11 @@ uv run suitepdf
 
 Se desejar executar rotinas automatizadas no terminal:
 ```bash
-# Comprimir um arquivo individual:
+# Comprimir um arquivo PDF individual:
 uv run python src/main.py "documento.pdf" -o "documento_leve.pdf" -q 68
+
+# Comprimir uma imagem avulsa (mantendo resolução original com -m 0):
+uv run python src/main.py "foto.png" -o "foto_leve.jpg" -q 75 -m 0
 
 # Unir múltiplos arquivos em um só:
 uv run python src/main.py "parte1.pdf" "parte2.pdf" "parte3.pdf" --unir -o "completo.pdf"
@@ -120,7 +124,7 @@ suite-pdf/
 │   └── SuitePDF.exe              # Executável standalone distribuível
 ├── src/
 │   ├── __init__.py
-│   ├── compressor.py             # Motor universal de compressão de PDFs
+│   ├── compressor.py             # Motor universal de compressão de PDFs e imagens
 │   ├── merger.py                 # Mecanismo de junção e concatenação ordenada
 │   ├── gui.py                    # Interface Gráfica moderna (CustomTkinter)
 │   └── main.py                   # Ponto de entrada (GUI padrão ou CLI com flags)

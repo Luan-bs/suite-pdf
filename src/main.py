@@ -20,11 +20,11 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 try:
-    from src.compressor import comprimir_pdf
+    from src.compressor import comprimir_arquivo
     from src.gui import iniciar_interface
     from src.merger import unir_pdfs
 except ImportError:
-    from compressor import comprimir_pdf
+    from compressor import comprimir_arquivo
     from gui import iniciar_interface
     from merger import unir_pdfs
 
@@ -103,15 +103,16 @@ def executar_cli():
         print(res.get("mensagem", "Operação concluída."))
         return
 
-    # Modo CLI: Compressão individual
+    # Modo CLI: Compressão individual (PDF ou Imagem)
     caminho_in = Path(args.entrada[0])
     if args.saida:
         caminho_out = Path(args.saida)
     else:
-        caminho_out = caminho_in.with_name(f"{caminho_in.stem}_otimizado.pdf")
+        ext = caminho_in.suffix or ".pdf"
+        caminho_out = caminho_in.with_name(f"{caminho_in.stem}_otimizado{ext}")
 
     print(f"Comprimindo '{caminho_in}' para '{caminho_out}'...")
-    res = comprimir_pdf(
+    res = comprimir_arquivo(
         caminho_entrada=caminho_in,
         caminho_saida=caminho_out,
         qualidade=args.qualidade,
